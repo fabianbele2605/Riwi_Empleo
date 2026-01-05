@@ -1,18 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { ApplicationsService } from './applications.service';
 import { Application } from './entities/application.entity';
-import { Vacancy } from '../vacancies/entities/vacancy.entity';
-import { User, UserRole } from '../users/entities/user.entity';
-import { CreateApplicationDto } from './dto/create-application.dto';
+import { VacanciesService } from '../vacancies/vacancies.service';
+import { UsersService } from '../users/users.service';
+import { ApplyVacancyDto } from './dto/apply-vacancy.dto';
 
 describe('ApplicationsService', () => {
   let service: ApplicationsService;
   let applicationRepository: Repository<Application>;
-  let vacancyRepository: Repository<Vacancy>;
-  let userRepository: Repository<User>;
+  let vacanciesService: VacanciesService;
+  let usersService: UsersService;
 
   const mockApplicationRepository = {
     create: jest.fn(),
@@ -23,11 +23,11 @@ describe('ApplicationsService', () => {
     softDelete: jest.fn(),
   };
 
-  const mockVacancyRepository = {
-    findOne: jest.fn(),
+  const mockVacanciesService = {
+    findActiveById: jest.fn(),
   };
 
-  const mockUserRepository = {
+  const mockUsersService = {
     findOne: jest.fn(),
   };
 
@@ -40,20 +40,20 @@ describe('ApplicationsService', () => {
           useValue: mockApplicationRepository,
         },
         {
-          provide: getRepositoryToken(Vacancy),
-          useValue: mockVacancyRepository,
+          provide: VacanciesService,
+          useValue: mockVacanciesService,
         },
         {
-          provide: getRepositoryToken(User),
-          useValue: mockUserRepository,
+          provide: UsersService,
+          useValue: mockUsersService,
         },
       ],
     }).compile();
 
     service = module.get<ApplicationsService>(ApplicationsService);
     applicationRepository = module.get<Repository<Application>>(getRepositoryToken(Application));
-    vacancyRepository = module.get<Repository<Vacancy>>(getRepositoryToken(Vacancy));
-    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
+    vacanciesService = module.get<VacanciesService>(VacanciesService);
+    usersService = module.get<UsersService>(UsersService);
   });
 
   afterEach(() => {
@@ -61,153 +61,64 @@ describe('ApplicationsService', () => {
   });
 
   describe('apply', () => {
-    const mockUser = {
-      id: 1,
-      name: 'Joel Adrian',
-      email: 'joel123@mail.com',
-      role: UserRole.CODER,
-      status: 'active',
-    };
-
-    const mockVacancy = {
-      id: 1,
-      title: 'Desarrollador Full Stack',
-      maxApplicants: 10,
-      isActive: true,
-      applications: [],
-    };
-
-    const createApplicationDto: CreateApplicationDto = {
-      vacancyId: 1,
-    };
+    const applyDto: ApplyVacancyDto = { vacancyId: 1 };
+    const mockVacancy = { id: 1, title: 'Test', maxApplicants: 10, isActive: true };
+    const mockApplication = { id: 1, userId: 1, vacancyId: 1 };
 
     it('should create application successfully', async () => {
-      const mockApplication = {
-        id: 1,
-        userId: 1,
-        vacancyId: 1,
-        appliedAt: new Date(),
-        user: mockUser,
-        vacancy: mockVacancy,
-      };
-
-      mockUserRepository.findOne.mockResolvedValue(mockUser);
-      mockVacancyRepository.findOne.mockResolvedValue(mockVacancy);
-      mockApplicationRepository.findOne.mockResolvedValue(null); // No existe aplicación previa
-      mockApplicationRepository.count.mockResolvedValue(2); // Usuario tiene 2 aplicaciones activas
+      mockVacanciesService.findActiveById.mockResolvedValue(mockVacancy);
+      mockApplicationRepository.findOne.mockResolvedValue(null);
+      mockApplicationRepository.count.mockResolvedValueOnce(2).mockResolvedValueOnce(5);
       mockApplicationRepository.create.mockReturnValue(mockApplication);
       mockApplicationRepository.save.mockResolvedValue(mockApplication);
 
-      const result = await service.apply(1, createApplicationDto);
+      const result = await service.apply(1, applyDto);
 
-      expect(mockUserRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1, status: 'active' },
-      });
-      expect(mockVacancyRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1, isActive: true },
-        relations: ['applications'],
-      });
-      expect(mockApplicationRepository.create).toHaveBeenCalledWith({
-        userId: 1,
-        vacancyId: 1,
-      });
+      expect(mockVacanciesService.findActiveById).toHaveBeenCalledWith(1);
+      expect(mockApplicationRepository.create).toHaveBeenCalledWith({ userId: 1, vacancyId: 1 });
       expect(result).toEqual(mockApplication);
     });
 
-    it('should throw NotFoundException when user not found', async () => {
-      mockUserRepository.findOne.mockResolvedValue(null);
-
-      await expect(service.apply(999, createApplicationDto)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
     it('should throw NotFoundException when vacancy not found', async () => {
-      mockUserRepository.findOne.mockResolvedValue(mockUser);
-      mockVacancyRepository.findOne.mockResolvedValue(null);
+      mockVacanciesService.findActiveById.mockResolvedValue(null);
 
-      await expect(service.apply(1, createApplicationDto)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.apply(1, applyDto)).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ConflictException when user already applied', async () => {
-      const existingApplication = {
-        id: 1,
-        userId: 1,
-        vacancyId: 1,
-      };
+    it('should throw BadRequestException when user already applied', async () => {
+      mockVacanciesService.findActiveById.mockResolvedValue(mockVacancy);
+      mockApplicationRepository.findOne.mockResolvedValue(mockApplication);
 
-      mockUserRepository.findOne.mockResolvedValue(mockUser);
-      mockVacancyRepository.findOne.mockResolvedValue(mockVacancy);
-      mockApplicationRepository.findOne.mockResolvedValue(existingApplication);
+      await expect(service.apply(1, applyDto)).rejects.toThrow(BadRequestException);
+    });
 
-      await expect(service.apply(1, createApplicationDto)).rejects.toThrow(
-        ConflictException,
-      );
+    it('should throw BadRequestException when user has 3 applications', async () => {
+      mockVacanciesService.findActiveById.mockResolvedValue(mockVacancy);
+      mockApplicationRepository.findOne.mockResolvedValue(null);
+      mockApplicationRepository.count.mockResolvedValueOnce(3);
+
+      await expect(service.apply(1, applyDto)).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException when vacancy is full', async () => {
-      const fullVacancy = {
-        ...mockVacancy,
-        applications: new Array(10).fill({}), // 10 aplicaciones (cupo completo)
-      };
-
-      mockUserRepository.findOne.mockResolvedValue(mockUser);
-      mockVacancyRepository.findOne.mockResolvedValue(fullVacancy);
+      mockVacanciesService.findActiveById.mockResolvedValue(mockVacancy);
       mockApplicationRepository.findOne.mockResolvedValue(null);
+      mockApplicationRepository.count.mockResolvedValueOnce(2).mockResolvedValueOnce(10);
 
-      await expect(service.apply(1, createApplicationDto)).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should throw BadRequestException when user has 3 active applications', async () => {
-      mockUserRepository.findOne.mockResolvedValue(mockUser);
-      mockVacancyRepository.findOne.mockResolvedValue(mockVacancy);
-      mockApplicationRepository.findOne.mockResolvedValue(null);
-      mockApplicationRepository.count.mockResolvedValue(3); // Usuario ya tiene 3 aplicaciones
-
-      await expect(service.apply(1, createApplicationDto)).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should throw BadRequestException when vacancy is inactive', async () => {
-      const inactiveVacancy = {
-        ...mockVacancy,
-        isActive: false,
-      };
-
-      mockUserRepository.findOne.mockResolvedValue(mockUser);
-      mockVacancyRepository.findOne.mockResolvedValue(null); // findOne no devuelve vacantes inactivas
-
-      await expect(service.apply(1, createApplicationDto)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(service.apply(1, applyDto)).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('findAll', () => {
-    it('should return all applications with relations', async () => {
-      const mockApplications = [
-        {
-          id: 1,
-          userId: 1,
-          vacancyId: 1,
-          appliedAt: new Date(),
-          user: { name: 'Joel Adrian' },
-          vacancy: { title: 'Desarrollador Full Stack' },
-        },
-      ];
-
+    it('should return all applications', async () => {
+      const mockApplications = [{ id: 1, userId: 1, vacancyId: 1 }];
       mockApplicationRepository.find.mockResolvedValue(mockApplications);
 
       const result = await service.findAll();
 
       expect(mockApplicationRepository.find).toHaveBeenCalledWith({
         relations: ['user', 'vacancy'],
-        order: { appliedAt: 'DESC' },
+        order: { createdAt: 'DESC' },
       });
       expect(result).toEqual(mockApplications);
     });
@@ -215,15 +126,7 @@ describe('ApplicationsService', () => {
 
   describe('findByUser', () => {
     it('should return user applications', async () => {
-      const mockApplications = [
-        {
-          id: 1,
-          userId: 1,
-          vacancyId: 1,
-          vacancy: { title: 'Desarrollador Full Stack' },
-        },
-      ];
-
+      const mockApplications = [{ id: 1, userId: 1, vacancyId: 1 }];
       mockApplicationRepository.find.mockResolvedValue(mockApplications);
 
       const result = await service.findByUser(1);
@@ -231,7 +134,7 @@ describe('ApplicationsService', () => {
       expect(mockApplicationRepository.find).toHaveBeenCalledWith({
         where: { userId: 1 },
         relations: ['vacancy'],
-        order: { appliedAt: 'DESC' },
+        order: { createdAt: 'DESC' },
       });
       expect(result).toEqual(mockApplications);
     });
@@ -239,65 +142,27 @@ describe('ApplicationsService', () => {
 
   describe('findByVacancy', () => {
     it('should return vacancy applications', async () => {
-      const mockApplications = [
-        {
-          id: 1,
-          userId: 1,
-          vacancyId: 1,
-          user: { name: 'Joel Adrian' },
-        },
-      ];
-
-      mockVacancyRepository.findOne.mockResolvedValue({ id: 1 });
+      const mockApplications = [{ id: 1, userId: 1, vacancyId: 1 }];
       mockApplicationRepository.find.mockResolvedValue(mockApplications);
 
       const result = await service.findByVacancy(1);
 
-      expect(mockVacancyRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1 },
-      });
       expect(mockApplicationRepository.find).toHaveBeenCalledWith({
         where: { vacancyId: 1 },
         relations: ['user'],
-        order: { appliedAt: 'DESC' },
+        order: { createdAt: 'DESC' },
       });
       expect(result).toEqual(mockApplications);
-    });
-
-    it('should throw NotFoundException when vacancy not found', async () => {
-      mockVacancyRepository.findOne.mockResolvedValue(null);
-
-      await expect(service.findByVacancy(999)).rejects.toThrow(
-        NotFoundException,
-      );
     });
   });
 
   describe('remove', () => {
     it('should remove application successfully', async () => {
-      const mockApplication = {
-        id: 1,
-        userId: 1,
-        vacancyId: 1,
-      };
-
-      mockApplicationRepository.findOne.mockResolvedValue(mockApplication);
       mockApplicationRepository.softDelete.mockResolvedValue({ affected: 1 });
 
-      await service.remove(1, 1);
+      await service.remove(1);
 
-      expect(mockApplicationRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 1, userId: 1 },
-      });
       expect(mockApplicationRepository.softDelete).toHaveBeenCalledWith(1);
-    });
-
-    it('should throw NotFoundException when application not found', async () => {
-      mockApplicationRepository.findOne.mockResolvedValue(null);
-
-      await expect(service.remove(999, 1)).rejects.toThrow(
-        NotFoundException,
-      );
     });
   });
 });

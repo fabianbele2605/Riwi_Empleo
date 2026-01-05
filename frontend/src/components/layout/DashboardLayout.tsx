@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/stores/authStore';
-import { DashboardSidebar } from './DashboardSidebar';
-import { DashboardHeader } from './DashboardHeader';
+import { DashboardSidebar } from './DashboardSidebar.js';
+import { DashboardHeader } from './DashboardHeader.js';
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);

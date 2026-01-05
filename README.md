@@ -297,10 +297,10 @@ npm run test:cov
 ```
 
 ### Current Coverage
-- **General coverage:** 20.03%
-- **VacanciesService:** 88.46% ✅
+- **General coverage:** 42.47%
+- **VacanciesService:** 92.3% ✅
 - **ApplicationsService:** 100% ✅
-- **Main services:** +40% (meets requirement)
+- **Main services:** +42% (meets requirement)
 
 ## 🚀 Available Scripts
 

@@ -3,26 +3,26 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { ThemeProvider } from "./components/theme-provider";
+import { ThemeProvider } from "./components/theme-provider.js";
 
 // Pages
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
-import Login from "./pages/auth/Login";
-import Register from "./pages/auth/Register";
+import Index from "./pages/Index.js";
+import NotFound from "./pages/NotFound.js";
+import Login from "./pages/auth/Login.js";
+import Register from "./pages/auth/Register.js";
 
 // Components
-import { ProtectedRoute } from "./components/ProtectedRoute";
-import { DashboardLayout } from "./components/layout/DashboardLayout";
-import Dashboard from "./pages/dashboard/Dashboard";
-import VacancyList from "./pages/dashboard/vacancies/VacancyList";
-import VacancyDetail from "./pages/dashboard/vacancies/VacancyDetail";
-import CreateVacancy from "./pages/dashboard/vacancies/CreateVacancy";
-import EditVacancy from "./pages/dashboard/vacancies/EditVacancy";
-import MyApplications from "./pages/dashboard/applications/MyApplications";
-import AllApplications from "./pages/dashboard/applications/AllApplications";
-import Users from "./pages/dashboard/Users";
-import Settings from "./pages/dashboard/Settings";
+import { ProtectedRoute } from "./components/ProtectedRoute.js";
+import { DashboardLayout } from "./components/layout/DashboardLayout.js";
+import Dashboard from "./pages/dashboard/Dashboard.js";
+import VacancyList from "./pages/dashboard/vacancies/VacancyList.js";
+import VacancyDetail from "./pages/dashboard/vacancies/VacancyDetail.js";
+import CreateVacancy from "./pages/dashboard/vacancies/CreateVacancy.js";
+import EditVacancy from "./pages/dashboard/vacancies/EditVacancy.js";
+import MyApplications from "./pages/dashboard/applications/MyApplications.js";
+import AllApplications from "./pages/dashboard/applications/AllApplications.js";
+import Users from "./pages/dashboard/Users.js";
+import Settings from "./pages/dashboard/Settings.js";
 
 const queryClient = new QueryClient();
 
